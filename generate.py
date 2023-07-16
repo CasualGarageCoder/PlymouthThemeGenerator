@@ -8,6 +8,9 @@ import os
 import sys
 import json
 import getopt
+import re
+from tempfile import mkstemp
+import shutil
 import ffmpeg
 
 
@@ -134,8 +137,36 @@ def write_plymouth_file(configuration):
                 f"ScriptFile={theme_directory}/{theme_name}/{theme_name}.script\n"
             )
         )
-        plymouth_file.close()
         print(f"Plymouth theme file '{theme_filepath}' created/updated")
+
+
+def replace_var_in_template(source_filepath, template_var, value):
+    """
+    Replace a variable in the template file.
+    The specified file can be a temporary file.
+
+    Parameters
+    ----------
+    source_filepath : str
+        The source file path.
+    template_var : str
+        Pattern to be replaced
+    value : str
+        Value to insert at pattern.
+
+    Return
+    ------
+    str
+        the path to the produced file.
+    """
+    output_path = ""
+    with open(source_filepath, "r", encoding="UTF-8") as source:
+        _return_code, output_path = mkstemp()
+        with open(output_path, "w", encoding="UTF-8") as output:
+            for line in source:
+                replaced = re.sub(template_var, value, line)
+                output.write(replaced)
+    return output_path
 
 
 def write_plymouth_script(configuration, frame_count):
@@ -150,21 +181,19 @@ def write_plymouth_script(configuration, frame_count):
         Number of frame files for the animation
     """
     theme_name = configuration["name"]
-    theme_directory = configuration["theme_directory"]
     script_filepath = f"{configuration['build']}/{theme_name}.script"
-    with open(script_filepath, "w", encoding="UTF-8") as script_file:
-        # Load the animation frames.
-        script_file.write(
-            (
-                f"for (i = 0; i < {frame_count}; i++)\n"
-                '   animation_image[i] = Image("animation/frame_" + i + ".png");\n'
-                "animation_sprite = Sprite();\n\n"
-                "animation_sprite.SetX(Window.GetWidth() / 2 - animation_image[0].GetWidth() / 2);\n"
-                "animation_sprite.SetY(Window.GetHeight() / 2 - animation_image[0].GetHeight() / 2);\n"
-            )
-        )
-        script_file.close()
-        print(f"Plymouth script file '{script_filepath}' created/updated")
+    temp_frame = replace_var_in_template(
+        "template.script", "##FRAME_COUNT##", str(frame_count)
+    )
+    temp_dialog_ratio = replace_var_in_template(
+        temp_frame, "##DIALOG_RATIO##", str(configuration["dialog"]["ratio"])
+    )
+    temp_progress_ratio = replace_var_in_template(
+        temp_dialog_ratio,
+        "##PROGRESS_RATIO##",
+        str(configuration["progression"]["ratio"]),
+    )
+    shutil.move(temp_progress_ratio, script_filepath)
 
 
 def build_theme(configuration):
@@ -233,7 +262,6 @@ def main():
     try:
         with open(configuration_filepath, "r", encoding="UTF-8") as configuration_file:
             custom_configuration = json.load(configuration_file)
-            configuration_file.close()
             configuration.update(custom_configuration)
     except FileNotFoundError:
         if custom_configuration_file:

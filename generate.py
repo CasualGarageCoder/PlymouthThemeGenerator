@@ -104,7 +104,7 @@ def extract_frames_from_video(video_path, output_path, fps):
     print(f"The result should be {number_of_extracts} images")
 
     ffmpeg.input(video_path).filter("scale", width, -1).filter("fps", fps).output(
-        f"{output_path}/animation_frame_%d.png"
+        f"{output_path}/animation/frame_%d.png"
     ).run(quiet=True, overwrite_output=True)
 
     return number_of_extracts
@@ -157,7 +157,7 @@ def write_plymouth_script(configuration, frame_count):
         script_file.write(
             (
                 f"for (i = 0; i < {frame_count}; i++)\n"
-                '   animation_image[i] = Image("animation_frame_" + i + ".png");\n'
+                '   animation_image[i] = Image("animation/frame_" + i + ".png");\n'
                 "animation_sprite = Sprite();\n\n"
                 "animation_sprite.SetX(Window.GetWidth() / 2 - animation_image[0].GetWidth() / 2);\n"
                 "animation_sprite.SetY(Window.GetHeight() / 2 - animation_image[0].GetHeight() / 2);\n"
@@ -179,6 +179,7 @@ def build_theme(configuration):
     """
     check_input_assets(configuration)
     prepare_build_directory(configuration["build"])
+    prepare_build_directory(f"{configuration['build']}/animation")
     # At this point, we are sure that every inputs and outputs are correct.
     write_plymouth_file(configuration)
     number_of_extracts = extract_frames_from_video(
